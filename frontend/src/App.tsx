@@ -13,6 +13,7 @@ import { HomePage } from './pages/HomePage';
 
 // Route-level code splitting for performance and bundle optimization
 const DiscoverPage = lazy(() => import('./pages/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
+const DestinationComparePage = lazy(() => import('./pages/DestinationComparePage').then((m) => ({ default: m.DestinationComparePage })));
 const RecommendationsPage = lazy(() => import('./pages/RecommendationsPage').then((m) => ({ default: m.RecommendationsPage })));
 const MapExplorePage = lazy(() => import('./pages/MapExplorePage').then((m) => ({ default: m.MapExplorePage })));
 const PlannerPage = lazy(() => import('./pages/PlannerPage').then((m) => ({ default: m.PlannerPage })));
@@ -40,6 +41,7 @@ const AppContent: React.FC = () => {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/discover" element={<DiscoverPage />} />
+            <Route path="/compare" element={<DestinationComparePage />} />
             <Route path="/recommendations" element={<RecommendationsPage />} />
             <Route path="/map" element={<MapExplorePage />} />
             <Route path="/planner" element={<PlannerPage />} />

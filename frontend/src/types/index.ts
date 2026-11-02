@@ -14,6 +14,7 @@ export type TravelInterest =
 
 export interface Destination {
   id: string;
+  slug?: string;
   name: string;
   state: string;
   region: 'North' | 'South' | 'East' | 'West' | 'North-East' | 'Central';
@@ -27,6 +28,9 @@ export interface Destination {
   popularCategories: TravelInterest[];
   verifiedStatus: VerificationStatus;
   placesCount?: number;
+  isExternal?: boolean;
+  resultType?: string;
+  provenanceLabel?: string;
 }
 
 export interface Place {
@@ -57,6 +61,15 @@ export interface Place {
   sourceUrl?: string;
   verificationStatus: VerificationStatus;
   lastVerifiedAt: string;
+
+  // Real-Time Image & Attribution (Phase 14)
+  imageUrl?: string;
+  imageAuthor?: string;
+  imageLicense?: string;
+  imageLicenseUrl?: string;
+  imageSourceUrl?: string;
+  imageProvenance?: string;
+  wikiExtract?: string;
 }
 
 export interface UserPreferences {

@@ -12,7 +12,10 @@ import {
   ShieldCheck,
   Search,
   ArrowRight,
-  Cpu
+  Cpu,
+  Compass,
+  SlidersHorizontal,
+  BookmarkCheck
 } from 'lucide-react';
 
 export const HomePage: React.FC = () => {
@@ -49,7 +52,7 @@ export const HomePage: React.FC = () => {
       };
 
   return (
-    <div className="space-y-24 pb-20">
+    <div className="space-y-20 pb-20">
       {/* 1. Hero Section */}
       <section className="relative pt-12 md:pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
         {/* Ambient Aurora Glow */}
@@ -131,7 +134,125 @@ export const HomePage: React.FC = () => {
         </motion.div>
       </section>
 
-      {/* 2. Three Pillars of LOCAL LENS INDIA */}
+      {/* 2. First-Time Visitor Journey: How Local Lens Works (Task 2 UX Polish) */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <div className="text-center space-y-2 max-w-2xl mx-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-saffron/15 text-brand-spice border border-brand-saffron/30 text-xs font-bold">
+            <Compass className="w-3.5 h-3.5" />
+            <span>HOW IT WORKS • 4 SIMPLE STEPS</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            Your Seamless Travel Planning Experience
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+            From discovering any Indian city to customized AI daily itineraries and transparent budget breakdowns.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {/* Step 1 */}
+          <GlassCard className="p-5 flex flex-col justify-between border-slate-200 dark:border-white/10 hover:border-brand-saffron/40 transition-all space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-brand-saffron/15 text-brand-spice font-mono font-bold text-xs flex items-center justify-center border border-brand-saffron/30">
+                  01
+                </span>
+                <Search className="w-4 h-4 text-slate-400" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Search Destination
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Choose from 7+ curated regional hubs or explore unseeded cities like Hyderabad with live OpenStreetMap attractions.
+              </p>
+            </div>
+            <Link
+              to="/discover"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-spice hover:text-brand-saffron transition-colors pt-2 border-t border-slate-200 dark:border-white/5"
+            >
+              <span>Explore Destinations</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </GlassCard>
+
+          {/* Step 2 */}
+          <GlassCard className="p-5 flex flex-col justify-between border-slate-200 dark:border-white/10 hover:border-brand-saffron/40 transition-all space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-brand-teal/15 text-brand-teal font-mono font-bold text-xs flex items-center justify-center border border-brand-teal/30">
+                  02
+                </span>
+                <SlidersHorizontal className="w-4 h-4 text-slate-400" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Set Preferences
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Specify your daily budget (₹500 to ₹15,000), group size, trip duration, and passions like heritage, street food, or beaches.
+              </p>
+            </div>
+            <a
+              href="#preferences-section"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-teal hover:opacity-80 transition-colors pt-2 border-t border-slate-200 dark:border-white/5"
+            >
+              <span>Customize Profile</span>
+              <ArrowRight className="w-3 h-3" />
+            </a>
+          </GlassCard>
+
+          {/* Step 3 */}
+          <GlassCard className="p-5 flex flex-col justify-between border-slate-200 dark:border-white/10 hover:border-brand-saffron/40 transition-all space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 font-mono font-bold text-xs flex items-center justify-center border border-purple-500/30">
+                  03
+                </span>
+                <Sparkles className="w-4 h-4 text-slate-400" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                View Recommendations
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Discover Scikit-Learn ranked spots with real entry fees, timings, photos, and match explanations grounded in real facts.
+              </p>
+            </div>
+            <Link
+              to="/recommendations"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-600 dark:text-purple-400 hover:opacity-80 transition-colors pt-2 border-t border-slate-200 dark:border-white/5"
+            >
+              <span>See Recommendations</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </GlassCard>
+
+          {/* Step 4 */}
+          <GlassCard className="p-5 flex flex-col justify-between border-slate-200 dark:border-white/10 hover:border-brand-saffron/40 transition-all space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono font-bold text-xs flex items-center justify-center border border-amber-500/30">
+                  04
+                </span>
+                <BookmarkCheck className="w-4 h-4 text-slate-400" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Generate & Save Itinerary
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Generate a multi-day plan via Gemini with Ollama fallback, inspect the cost breakdown, save, and reopen anytime in Saved Trips.
+              </p>
+            </div>
+            <Link
+              to="/planner"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 hover:opacity-80 transition-colors pt-2 border-t border-slate-200 dark:border-white/5"
+            >
+              <span>Open AI Planner</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </GlassCard>
+        </div>
+      </section>
+
+      {/* 3. Three Pillars of LOCAL LENS INDIA */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <GlassCard className="p-6 border-slate-200 dark:border-white/10 space-y-3">
@@ -166,7 +287,7 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 3. Interactive Destination Discovery Preview */}
+      {/* 4. Interactive Destination Discovery Preview */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
@@ -215,12 +336,12 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 4. Travel Preference Builder Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* 5. Travel Preference Builder Section */}
+      <section id="preferences-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <PreferenceSelector />
       </section>
 
-      {/* 5. AI Travel Chatbot Section (Phase 9 Task 3) */}
+      {/* 6. AI Travel Chatbot Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <GlassCard className="relative overflow-hidden p-8 sm:p-12 border-brand-saffron/20 dark:border-white/10 shadow-2xl">
           {/* Subtle Ambient Background Gradients */}

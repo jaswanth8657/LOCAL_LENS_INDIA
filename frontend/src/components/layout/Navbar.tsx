@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Compass,
+  Scale,
   Sparkles,
   MapPin,
   Bookmark,
@@ -28,6 +29,7 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: 'Discover', path: '/discover', icon: Compass },
+    { name: 'Compare', path: '/compare', icon: Scale },
     { name: 'Recommendations', path: '/recommendations', icon: Sparkles },
     { name: 'AI Planner', path: '/planner', icon: MapPin },
     { name: 'AI Chatbot', path: '/chat', icon: MessageSquare },

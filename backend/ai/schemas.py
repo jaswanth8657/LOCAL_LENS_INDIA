@@ -11,6 +11,7 @@ class TripPreferencesInput(BaseModel):
     latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0, description="User starting latitude")
     longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0, description="User starting longitude")
     preferred_pace: str = Field(default="Moderate", description="Travel pace: Relaxed (2 stops/day), Moderate (3 stops/day), Packed (4 stops/day)")
+    selected_place_ids: List[str] = Field(default_factory=list, description="Specific must-visit place IDs selected by user")
     save_to_db: bool = Field(default=False, description="Whether to automatically persist the itinerary to SQLite")
 
     @field_validator('group_type')

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { CURATED_DESTINATIONS } from '../data/curatedDestinations';
 import { Itinerary, ItineraryDay, ExpenseBreakdown } from '../types';
 import { ItineraryTimeline } from '../components/planner/ItineraryTimeline';
+import { InteractiveMap } from '../components/map/InteractiveMap';
 import { BudgetBreakdown } from '../components/planner/BudgetBreakdown';
 import { GlassCard } from '../components/ui/GlassCard';
 import {
@@ -47,6 +48,8 @@ export const PlannerPage: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [preferredPace, setPreferredPace] = useState<'Relaxed' | 'Moderate' | 'Packed'>('Moderate');
   const [providersStatus, setProvidersStatus] = useState<Record<string, AIProviderStatus> | null>(null);
+  const [activeDayIndex, setActiveDayIndex] = useState(0);
+  const [showMobileMap, setShowMobileMap] = useState(false);
 
   const dest = selectedDestination || CURATED_DESTINATIONS[0];
   const destId = dest.id || preferences.destination || 'visakhapatnam';
@@ -154,6 +157,7 @@ export const PlannerPage: React.FC = () => {
         group_type: preferences.groupType,
         duration_days: preferences.durationDays,
         preferred_pace: preferredPace,
+        selected_place_ids: addedPlaces.map((p) => p.id),
         save_to_db: false,
       });
 
@@ -382,7 +386,29 @@ export const PlannerPage: React.FC = () => {
         </div>
       )}
 
-      {/* Two Column Layout: Itinerary on Left, Budget & Status on Right */}
+      {/* Mobile Map Toggle (Hidden on large screens) */}
+      <div className="lg:hidden no-print space-y-3">
+        <button
+          type="button"
+          onClick={() => setShowMobileMap(!showMobileMap)}
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-stone-200/90 dark:bg-white/10 hover:bg-stone-300 dark:hover:bg-white/15 text-stone-800 dark:text-white transition-all shadow-sm"
+        >
+          <MapPin className="w-4 h-4 text-brand-saffron" />
+          <span>{showMobileMap ? 'Hide Route Map' : `View Day ${(activeItinerary.days[activeDayIndex] || activeItinerary.days[0])?.dayNumber || 1} Route Map`}</span>
+        </button>
+        {showMobileMap && (
+          <div className="h-[320px] rounded-2xl overflow-hidden border border-stone-200 dark:border-white/10 shadow-lg">
+            <InteractiveMap
+              centerLat={dest.latitude || 17.6868}
+              centerLng={dest.longitude || 83.2185}
+              itineraryStops={(activeItinerary.days[activeDayIndex] || activeItinerary.days[0])?.stops || []}
+              showRoutePolyline={true}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Two Column Layout: Itinerary on Left, Interactive Day Route Map & Budget on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <ItineraryTimeline
@@ -390,10 +416,33 @@ export const PlannerPage: React.FC = () => {
             onSave={handleSaveTrip}
             isSaved={isAlreadySaved || saveSuccess}
             isSaving={isSaving}
+            activeDayIndex={activeDayIndex}
+            setActiveDayIndex={setActiveDayIndex}
           />
         </div>
 
         <div className="lg:col-span-1 space-y-6">
+          {/* Interactive Day Route Map (Desktop sticky) */}
+          <GlassCard className="p-4 border-slate-200 dark:border-white/10 space-y-3 bg-white/80 dark:bg-slate-900/80 no-print">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                <MapPin className="w-4 h-4 text-brand-saffron" />
+                <span>Day {(activeItinerary.days[activeDayIndex] || activeItinerary.days[0])?.dayNumber || 1} Route Map</span>
+              </div>
+              <span className="text-[10px] text-brand-spice font-semibold bg-brand-saffron/10 px-2.5 py-0.5 rounded-full border border-brand-saffron/20">
+                {((activeItinerary.days[activeDayIndex] || activeItinerary.days[0])?.stops || []).length} Stops
+              </span>
+            </div>
+            <div className="h-[340px] rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10">
+              <InteractiveMap
+                centerLat={dest.latitude || 17.6868}
+                centerLng={dest.longitude || 83.2185}
+                itineraryStops={(activeItinerary.days[activeDayIndex] || activeItinerary.days[0])?.stops || []}
+                showRoutePolyline={true}
+              />
+            </div>
+          </GlassCard>
+
           <BudgetBreakdown
             expenses={activeItinerary.expenses}
             durationDays={activeItinerary.durationDays}

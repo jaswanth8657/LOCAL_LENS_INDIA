@@ -118,7 +118,9 @@ class Phase11LiveDiscoveryTests(TestCase):
             }
         ]
 
-        service = LivePlaceSearchService(overpass=mock_overpass)
+        mock_nominatim = MagicMock()
+        mock_nominatim.fetch.return_value = []
+        service = LivePlaceSearchService(overpass=mock_overpass, nominatim=mock_nominatim)
         search_result = service.search_places(destination_slug="visakhapatnam", live=True)
 
         # Duplicate should NOT be added as external

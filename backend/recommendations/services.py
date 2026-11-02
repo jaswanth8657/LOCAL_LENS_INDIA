@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, Any, List, Optional
 from destinations.models import Destination
 from places.models import Place
@@ -6,11 +7,14 @@ from .ml_engine import TFIDFRecommendationEngine
 from .distance import haversine_distance_km, calculate_distance_score
 from .scoring import RecommendationScorer
 
+logger = logging.getLogger(__name__)
+
 class RecommendationService:
     """
     High-level orchestrator for personalized travel recommendations.
     Connects Scikit-learn TF-IDF semantic matching, WGS84 distance calculation,
     budget fitting, and multi-factor explainability ranking.
+    Supports both local database destinations and live-discovered external destinations.
     """
 
     def __init__(self):
@@ -32,23 +36,76 @@ class RecommendationService:
         sort_by: str = 'match'
     ) -> Dict[str, Any]:
         destination = Destination.objects.filter(slug=destination_slug).first()
-        if not destination:
+        is_live_dest = False
+        dest_name = destination_slug.title()
+        ref_lat = user_lat
+        ref_lon = user_lon
+        places = []
+
+        if destination:
+            ref_lat = user_lat if user_lat is not None else destination.latitude
+            ref_lon = user_lon if user_lon is not None else destination.longitude
+            places_qs = Place.objects.filter(destination=destination).select_related('destination').prefetch_related('provenance_records')
+            places = list(places_qs)
+            dest_name = destination.name
+        else:
+            # Live destination fallback for unseeded cities (e.g. Hyderabad, Bengaluru, Chandigarh)
+            try:
+                from data_providers.nominatim import NominatimProvider
+                from places.search_service import LivePlaceSearchService
+                nominatim = NominatimProvider()
+                geocoded = nominatim.geocode_destination(f"{destination_slug}, India")
+                if not geocoded:
+                    geocoded = nominatim.geocode_destination(destination_slug)
+                if geocoded:
+                    is_live_dest = True
+                    dest_name = geocoded.get('name') or destination_slug.title()
+                    ref_lat = user_lat if user_lat is not None else geocoded['latitude']
+                    ref_lon = user_lon if user_lon is not None else geocoded['longitude']
+
+                    live_service = LivePlaceSearchService()
+                    search_res = live_service.search_places(
+                        destination_slug=destination_slug,
+                        live=True,
+                        limit=30
+                    )
+                    raw_pois = search_res.get('results', [])
+                    for r in raw_pois:
+                        class LivePlaceWrapper:
+                            def __init__(self, d):
+                                self.id = d.get('id')
+                                self.name = d.get('name')
+                                self.category = d.get('category', 'culture')
+                                self.subcategory = d.get('subcategory', '')
+                                self.description = d.get('description', '')
+                                self.address = d.get('address', '')
+                                self.latitude = d.get('latitude')
+                                self.longitude = d.get('longitude')
+                                self.price_tier = d.get('price_tier', 'Budget')
+                                self.ticket_price_inr = d.get('ticket_price_inr')
+                                self.typical_cost_inr = d.get('typical_cost_inr')
+                                self.opening_hours = d.get('opening_hours', '')
+                                self.rating = d.get('rating')
+                                self.reviews_count = d.get('review_count', 0)
+                                self.data_source = d.get('source_name', 'OpenStreetMap Live Discovery')
+                                self.source_record_id = d.get('source_record_id', '')
+                                self.source_url = d.get('source_url', '')
+                                self.verification_status = d.get('verification_status', 'UNVERIFIED')
+                                self.last_verified_at = None
+                        places.append(LivePlaceWrapper(r))
+            except Exception as e:
+                logger.warning("Live recommendation discovery notice for '%s': %s", destination_slug, e)
+
+        if not destination and not is_live_dest:
             return {
                 'error': f"Destination '{destination_slug}' not found in database.",
                 'recommendations': []
             }
 
-        # Reference coordinate: user location if supplied, else destination center
-        ref_lat = user_lat if user_lat is not None else destination.latitude
-        ref_lon = user_lon if user_lon is not None else destination.longitude
-
-        places_qs = Place.objects.filter(destination=destination).select_related('destination').prefetch_related('provenance_records')
-        places = list(places_qs)
-
         if not places:
             return {
-                'destination': destination.name,
-                'destinationSlug': destination.slug,
+                'destination': dest_name,
+                'destinationSlug': destination_slug,
                 'totalAvailablePlaces': 0,
                 'recommendations': [],
                 'weights': {
@@ -71,7 +128,7 @@ class RecommendationService:
                 'subcategory': p.subcategory,
                 'description': p.description,
                 'address': p.address,
-                'destination_name': destination.name,
+                'destination_name': dest_name,
             })
             place_docs.append(doc)
 
@@ -113,7 +170,7 @@ class RecommendationService:
             # Format record for response
             scored_results.append({
                 'id': place.id,
-                'destinationId': destination.slug,
+                'destinationId': destination.slug if destination else destination_slug,
                 'name': place.name,
                 'category': place.category,
                 'subcategory': place.subcategory,
@@ -151,28 +208,35 @@ class RecommendationService:
         elif sort_by == 'name':
             scored_results.sort(key=lambda x: x['name'].lower())
         else:
-            # Default sort: descending matchScore
+            # Default: sort by matchScore descending
             scored_results.sort(key=lambda x: x['matchScore'], reverse=True)
 
+        final_slice = scored_results[:limit]
+
         return {
-            'destination': destination.name,
-            'destinationSlug': destination.slug,
-            'totalVerifiedPlaces': len(scored_results),
+            'destination': dest_name,
+            'destinationSlug': destination.slug if destination else destination_slug,
             'userCriteria': {
                 'interests': user_interests,
                 'budgetPerDay': budget_per_day,
                 'groupType': group_type,
                 'groupSize': group_size,
                 'durationDays': duration_days,
-                'referenceLocation': {'latitude': ref_lat, 'longitude': ref_lon},
             },
-            'scoringWeights': {
-                'tfidfSimilarity': round(self.scorer.w_similarity, 2),
-                'categoryRelevance': round(self.scorer.w_category, 2),
-                'budgetCompatibility': round(self.scorer.w_budget, 2),
-                'spatialProximity': round(self.scorer.w_distance, 2),
-                'dataQuality': round(self.scorer.w_quality, 2),
+            'userInterests': user_interests,
+            'dailyBudgetInr': budget_per_day,
+            'groupType': group_type,
+            'groupSize': group_size,
+            'durationDays': duration_days,
+            'totalVerifiedPlaces': len(places),
+            'totalAvailablePlaces': len(places),
+            'returnedCount': len(final_slice),
+            'weights': {
+                'similarity': round(self.scorer.w_similarity, 3),
+                'category': round(self.scorer.w_category, 3),
+                'budget': round(self.scorer.w_budget, 3),
+                'distance': round(self.scorer.w_distance, 3),
+                'quality': round(self.scorer.w_quality, 3),
             },
-            'recommendations': scored_results[:limit]
+            'recommendations': final_slice
         }
-

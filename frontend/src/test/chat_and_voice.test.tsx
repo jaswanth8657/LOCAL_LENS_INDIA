@@ -7,7 +7,7 @@ import { ChatPage } from '../pages/ChatPage';
 const renderChatPage = () => {
   return render(
     <TripProvider>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ChatPage />
       </BrowserRouter>
     </TripProvider>

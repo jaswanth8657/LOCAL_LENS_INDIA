@@ -134,9 +134,13 @@ export const RecommendationsPage: React.FC = () => {
     setSelectedDestination,
     addedPlaces,
     addPlaceToTrip,
+    addPlaceToDay,
     removePlaceFromTrip,
-    isPlaceInTrip
+    isPlaceInTrip,
+    currentItinerary
   } = useTrip();
+
+  const availableDays = currentItinerary ? currentItinerary.days.map((d) => d.dayNumber) : [];
 
   const navigate = useNavigate();
 
@@ -176,8 +180,15 @@ export const RecommendationsPage: React.FC = () => {
     handleApplyChanges(budgetPerDay, durationDays, groupType, groupSize, nextInterests);
   };
 
+  const destinationList = React.useMemo(() => {
+    if (selectedDestination && !CURATED_DESTINATIONS.some((d) => d.id === selectedDestination.id)) {
+      return [selectedDestination, ...CURATED_DESTINATIONS];
+    }
+    return CURATED_DESTINATIONS;
+  }, [selectedDestination]);
+
   const handleDestinationChange = (newDestId: string) => {
-    const matched = CURATED_DESTINATIONS.find((d) => d.id === newDestId);
+    const matched = destinationList.find((d) => d.id === newDestId);
     if (matched) {
       setSelectedDestination(matched);
       setPreferences((prev) => ({
@@ -258,6 +269,16 @@ export const RecommendationsPage: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const handleAddToDay = (place: Place, dayNumber: number) => {
+    const added = addPlaceToDay(place, dayNumber);
+    if (added) {
+      setToastMessage({ text: `Added "${place.name}" to Day ${dayNumber}!`, type: 'success' });
+    } else {
+      setToastMessage({ text: `Could not add "${place.name}" to Day ${dayNumber}`, type: 'info' });
+    }
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
   const handleViewOnMap = (place: Place) => {
     navigate(`/map?destination=${destId}&placeId=${place.id}&lat=${place.latitude}&lng=${place.longitude}`, {
       state: { selectedPlaceId: place.id, lat: place.latitude, lng: place.longitude, destinationId: destId }
@@ -322,9 +343,9 @@ export const RecommendationsPage: React.FC = () => {
               onChange={(e) => handleDestinationChange(e.target.value)}
               className="text-2xl font-extrabold bg-transparent border-b-2 border-brand-saffron text-brand-spice dark:text-brand-saffron focus:outline-none cursor-pointer py-0.5"
             >
-              {CURATED_DESTINATIONS.map((d) => (
+              {destinationList.map((d) => (
                 <option key={d.id} value={d.id} className="text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                  {d.name}{d.placesCount !== undefined && d.placesCount !== null ? ` (${d.placesCount} spots)` : ''}
+                  {d.name}{d.placesCount !== undefined && d.placesCount !== null ? ` (${d.placesCount} spots)` : d.isExternal ? ' (Live Discovery)' : ''}
                 </option>
               ))}
             </select>
@@ -636,7 +657,9 @@ export const RecommendationsPage: React.FC = () => {
               place={place}
               onViewOnMap={() => handleViewOnMap(place)}
               onAddToItinerary={() => handleAddToItinerary(place)}
+              onAddToDay={(p, dayNum) => handleAddToDay(p, dayNum)}
               isAddedToItinerary={isPlaceInTrip(place.id)}
+              availableDays={availableDays}
             />
           ))}
         </div>

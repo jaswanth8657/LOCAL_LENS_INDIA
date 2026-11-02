@@ -82,7 +82,7 @@ describe('Phase 10C: UI Polish, Integration & Demo Readiness', () => {
 
   it('Part 4: DestinationCard renders dynamic placesCount badge', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <TripProvider>
           <DestinationCard destination={mockDestination} />
         </TripProvider>
@@ -103,7 +103,7 @@ describe('Phase 10C: UI Polish, Integration & Demo Readiness', () => {
     };
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <TripProvider>
           <DestinationCard destination={zeroDestination} />
         </TripProvider>
@@ -122,7 +122,7 @@ describe('Phase 10C: UI Polish, Integration & Demo Readiness', () => {
     };
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <TripProvider>
           <DestinationCard destination={missingCountDestination} />
         </TripProvider>
@@ -135,7 +135,7 @@ describe('Phase 10C: UI Polish, Integration & Demo Readiness', () => {
   it('Part 3 Regression: RecommendationsPage renders revised non-misleading provenance filter labels', () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <TripProvider>
             <RecommendationsPage />
           </TripProvider>
@@ -218,7 +218,7 @@ describe('Phase 10C: UI Polish, Integration & Demo Readiness', () => {
   it('Part 2: DiscoverPage pre-fills and synchronizes search from URL query parameter', async () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={['/discover?q=Jaipur']}>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/discover?q=Jaipur']}>
           <TripProvider>
             <DiscoverPage />
           </TripProvider>

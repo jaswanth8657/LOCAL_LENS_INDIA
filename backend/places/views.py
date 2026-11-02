@@ -1,5 +1,6 @@
 import django_filters
 from rest_framework import viewsets, filters, status
+from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -32,6 +33,25 @@ class PlaceViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'address', 'description', 'subcategory']
     ordering_fields = ['match_score', 'ticket_price_inr', 'typical_cost_inr', 'name']
     ordering = ['-match_score', 'name']
+
+    @action(detail=True, methods=['get'], url_path='provenance')
+    def provenance(self, request, pk=None):
+        """
+        Return all immutable data provenance records for this place.
+        """
+        place = self.get_object()
+        records = place.provenance_records.all().order_by('-retrieved_at')
+        serializer = DataProvenanceLogSerializer(records, many=True)
+        return Response({
+            "placeId": place.id,
+            "placeName": place.name,
+            "verificationStatus": place.verification_status,
+            "dataSource": place.data_source,
+            "sourceUrl": place.source_url or None,
+            "lastVerifiedAt": place.last_verified_at,
+            "count": records.count(),
+            "records": serializer.data,
+        })
 
 
 class DataProvenanceLogViewSet(viewsets.ReadOnlyModelViewSet):
@@ -125,4 +145,3 @@ class ImportExternalPlaceAPIView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"error": f"Import failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-

@@ -95,6 +95,11 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # External Data Provider cache TTL in seconds
 DATA_CACHE_TTL = int(os.getenv('DATA_CACHE_TTL', '86400'))
 
+# Real-Time Travel Data Providers (Phase 14)
+OPENTRIPMAP_API_KEY = os.getenv('OPENTRIPMAP_API_KEY', '').strip()
+GEOAPIFY_API_KEY = os.getenv('GEOAPIFY_API_KEY', '').strip()
+
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS configuration limited to required local frontend origins
@@ -134,4 +139,5 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
     'SCHEMA_PATH_PREFIX': r'/api/v[0-9]',
 }
+
 

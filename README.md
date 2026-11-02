@@ -139,3 +139,4 @@ npm run build
 - **Zero Secret Commits:** `.env`, API keys, private credentials, and local logs are strictly `.gitignore`d.
 - **Database Safety:** SQLite database files (`*.sqlite3`, `*.db`) and database backups are never tracked in Git.
 - **Deterministic AI Fallback:** The application functions fully offline without external API keys or Ollama models using local database records and the deterministic planner.
+

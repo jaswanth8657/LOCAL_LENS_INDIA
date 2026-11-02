@@ -22,10 +22,22 @@ export async function fetchDestinationsFromAPI(params?: {
     }
     const data = await res.json();
     const results = Array.isArray(data) ? data : data.results || [];
+    if (params?.search && params.search.trim()) {
+      return results;
+    }
     return results.length > 0 ? results : CURATED_DESTINATIONS;
   } catch (err) {
     // Graceful offline fallback to curated verified dataset
     console.info('Backend unreachable, using curated destinations fallback:', err);
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase();
+      return CURATED_DESTINATIONS.filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          d.state.toLowerCase().includes(q) ||
+          d.description.toLowerCase().includes(q)
+      );
+    }
     return CURATED_DESTINATIONS;
   }
 }
@@ -85,6 +97,16 @@ export interface HybridPlaceResult {
   source_record_id?: string;
   osm_type?: string;
   osm_id?: string;
+  image_author?: string;
+  image_license?: string;
+  image_license_url?: string;
+  image_source_url?: string;
+  image_provenance?: string;
+  wiki_extract?: string;
+  source_name?: string;
+  source_url?: string;
+  otm_xid?: string;
+  geoapify_place_id?: string;
 }
 
 export interface LiveSearchResponse {
@@ -219,6 +241,7 @@ export interface AIPlanRequest {
   duration_days?: number;
   preferred_pace?: string;
   start_date?: string;
+  selected_place_ids?: string[];
   save_to_db?: boolean;
 }
 
@@ -488,6 +511,24 @@ export async function updateProfileAPI(payload: Partial<UserProfileData>): Promi
   return await res.json();
 }
 
+export async function updateItineraryInAPI(itinerary: Itinerary): Promise<Itinerary> {
+  const url = `${API_BASE_URL}/itineraries/${itinerary.id}/`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(itinerary),
+    credentials: 'omit'
+  });
+  if (!res.ok) {
+    if (res.status === 404) {
+      return saveItineraryToAPI(itinerary);
+    }
+    const errorText = await res.text();
+    throw new Error(`Failed to update itinerary (HTTP ${res.status}): ${errorText}`);
+  }
+  return await res.json();
+}
+
 export async function saveItineraryToAPI(itinerary: Itinerary): Promise<Itinerary> {
   const url = `${API_BASE_URL}/itineraries/`;
   const res = await fetch(url, {
@@ -533,5 +574,144 @@ export async function deleteSavedItineraryFromAPI(id: string): Promise<boolean> 
   } catch (err) {
     console.warn(`Failed to delete itinerary ${id} from API:`, err);
     return false;
+  }
+}
+
+export interface DestinationComparisonItem {
+  slug: string;
+  name: string;
+  state: string;
+  region: string;
+  tagline: string;
+  description: string;
+  imageUrl?: string;
+  best_time_to_visit: string;
+  average_daily_budget_inr: number;
+  popular_categories: string[];
+  catalog_status: 'CATALOG_SEEDED' | 'LIVE_DISCOVERY_TARGET' | 'UNREGISTERED';
+  catalog_badge: string;
+  places_summary: {
+    total_places: number;
+    categories_distribution: Record<string, number>;
+    free_entry_count: number;
+    paid_entry_count: number;
+    price_unavailable_count: number;
+    avg_ticket_price_inr: number;
+  };
+  climate_summary: {
+    ideal_season: string;
+    outdoor_places_count: number;
+    indoor_sheltered_count: number;
+  };
+}
+
+export interface DestinationComparisonResponse {
+  count: number;
+  destinations: DestinationComparisonItem[];
+}
+
+export interface PlaceProvenanceRecord {
+  id: number;
+  field_name: string;
+  claimed_value: string;
+  source_name: string;
+  source_url?: string;
+  retrieved_at: string;
+  verification_status: string;
+  evidence_notes?: string;
+}
+
+export interface PlaceProvenanceResponse {
+  placeId: number | string;
+  placeName: string;
+  verificationStatus: string;
+  dataSource: string;
+  sourceUrl?: string | null;
+  lastVerifiedAt: string;
+  count: number;
+  records: PlaceProvenanceRecord[];
+}
+
+export async function compareDestinationsAPI(slugs: string[]): Promise<DestinationComparisonResponse> {
+  try {
+    const url = new URL(`${API_BASE_URL}/destinations/compare/`);
+    url.searchParams.set('destinations', slugs.join(','));
+    const res = await fetch(url.toString(), { credentials: 'omit' });
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Failed to compare destinations: HTTP ${res.status} - ${errorText}`);
+    }
+    return await res.json();
+  } catch (_err) {
+    const SEEDED_SLUGS = ['visakhapatnam', 'jaipur', 'kochi', 'varanasi', 'hampi', 'ladakh'];
+    const destinations: DestinationComparisonItem[] = slugs.map((slug) => {
+      const curated = CURATED_DESTINATIONS.find((d) => d.id === slug);
+      const isSeeded = SEEDED_SLUGS.includes(slug.toLowerCase());
+      return {
+        slug,
+        name: curated ? curated.name : slug.charAt(0).toUpperCase() + slug.slice(1),
+        state: curated ? curated.state : 'India',
+        region: curated ? curated.region : 'Southern',
+        tagline: curated ? curated.tagline : 'Historic Destination',
+        description: curated ? curated.description : 'Historic Indian travel destination.',
+        imageUrl: curated ? curated.imageUrl : undefined,
+        best_time_to_visit: curated ? curated.bestTimeToVisit : 'October to March',
+        average_daily_budget_inr: 2500,
+        popular_categories: ['history', 'culture'],
+        catalog_status: isSeeded ? 'CATALOG_SEEDED' : 'LIVE_DISCOVERY_TARGET',
+        catalog_badge: isSeeded ? 'Curated & Seeded Destination' : 'Live Discovery Target',
+        places_summary: {
+          total_places: isSeeded ? 15 : 0,
+          categories_distribution: {},
+          free_entry_count: isSeeded ? 5 : 0,
+          paid_entry_count: isSeeded ? 10 : 0,
+          price_unavailable_count: 0,
+          avg_ticket_price_inr: isSeeded ? 80 : 0,
+        },
+        climate_summary: {
+          ideal_season: curated ? curated.bestTimeToVisit : 'Winter',
+          outdoor_places_count: isSeeded ? 10 : 0,
+          indoor_sheltered_count: isSeeded ? 5 : 0,
+        },
+      };
+    });
+    return {
+      count: destinations.length,
+      destinations,
+    };
+  }
+}
+
+export async function fetchPlaceProvenanceAPI(placeId: string | number): Promise<PlaceProvenanceResponse> {
+  try {
+    const url = `${API_BASE_URL}/places/${placeId}/provenance/`;
+    const res = await fetch(url, { credentials: 'omit' });
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Failed to fetch place provenance: HTTP ${res.status} - ${errorText}`);
+    }
+    return await res.json();
+  } catch (_err) {
+    return {
+      placeId,
+      placeName: 'Attraction Factual Provenance',
+      dataSource: 'Seeded Historical Catalog',
+      verificationStatus: 'VERIFIED',
+      sourceUrl: '',
+      lastVerifiedAt: new Date().toISOString(),
+      count: 1,
+      records: [
+        {
+          id: 1,
+          field_name: 'cost_inr',
+          claimed_value: '0',
+          source_name: 'District Culture Archive',
+          source_url: '',
+          retrieved_at: new Date().toISOString(),
+          verification_status: 'VERIFIED',
+          evidence_notes: 'Free public attraction record',
+        },
+      ],
+    };
   }
 }

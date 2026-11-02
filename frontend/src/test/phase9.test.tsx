@@ -123,7 +123,7 @@ describe('Phase 9 — Chatbot Homepage Section (Task 3)', () => {
         <ThemeProvider>
           <AuthProvider>
             <TripProvider>
-              <MemoryRouter>
+              <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                 <HomePage />
               </MemoryRouter>
             </TripProvider>

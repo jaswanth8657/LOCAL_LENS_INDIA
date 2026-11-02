@@ -6,17 +6,18 @@ import {
   fetchDestinationsFromAPI,
   searchPlacesHybridAPI,
   importExternalPlaceAPI,
-  HybridPlaceResult
+  HybridPlaceResult,
 } from '../api/client';
 import { DestinationCard } from '../components/discovery/DestinationCard';
 import { GlassCard } from '../components/ui/GlassCard';
 import { CardSkeleton } from '../components/ui/Skeleton';
+import { ProvenanceDrawer } from '../components/ui/ProvenanceDrawer';
+import { RegionalCulinaryGuide } from '../components/culinary/RegionalCulinaryGuide';
+import { classifyPlaceEnvironment } from '../utils/heatAware';
 import { useTrip } from '../context/TripContext';
 import {
   Search,
   Compass,
-  MapPin,
-  ArrowRight,
   RefreshCw,
   Globe2,
   Database,
@@ -25,26 +26,32 @@ import {
   Clock,
   IndianRupee,
   Building,
-  Map as MapIcon
+  Map as MapIcon,
+  Scale,
+  UtensilsCrossed,
+  Sun,
+  ShieldCheck,
 } from 'lucide-react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 export const DiscoverPage: React.FC = () => {
-  const { selectedDestination, setSelectedDestination, setPreferences } = useTrip();
-  const navigate = useNavigate();
+  const { selectedDestination, setSelectedDestination } = useTrip();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const prefersReducedMotion = useReducedMotion();
 
   const initialQuery = searchParams.get('q') || searchParams.get('search') || '';
-  const initialMode = (searchParams.get('mode') as 'destinations' | 'places') || 'destinations';
+  const initialMode =
+    (searchParams.get('mode') as 'destinations' | 'places' | 'culinary') || 'destinations';
 
-  const [activeTab, setActiveTab] = useState<'destinations' | 'places'>(initialMode);
+  const [activeTab, setActiveTab] = useState<'destinations' | 'places' | 'culinary'>(initialMode);
   const [search, setSearch] = useState(initialQuery);
   const [debouncedSearch, setDebouncedSearch] = useState(initialQuery);
   const [selectedRegion, setSelectedRegion] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedEnvironment, setSelectedEnvironment] = useState<string>('All');
   const [importingId, setImportingId] = useState<string | null>(null);
+  const [provenanceModalPlace, setProvenanceModalPlace] = useState<{ id: string | number; name: string } | null>(null);
 
   // Debounce search to avoid excessive calls
   useEffect(() => {
@@ -72,7 +79,7 @@ export const DiscoverPage: React.FC = () => {
     setSearchParams(newParams, { replace: true });
   };
 
-  const handleTabChange = (tab: 'destinations' | 'places') => {
+  const handleTabChange = (tab: 'destinations' | 'places' | 'culinary') => {
     setActiveTab(tab);
     const newParams = new URLSearchParams(searchParams);
     newParams.set('mode', tab);
@@ -81,6 +88,7 @@ export const DiscoverPage: React.FC = () => {
 
   const regions = ['All', 'North', 'South', 'West', 'North-East'];
   const categories = ['All', 'beaches', 'culture', 'nature', 'history', 'food', 'adventure'];
+  const environments = ['All', 'OUTDOOR', 'INDOOR', 'SHELTERED'];
 
   // Destinations Query
   const {
@@ -89,8 +97,8 @@ export const DiscoverPage: React.FC = () => {
     isError: isErrorDestinations,
     refetch: refetchDestinations,
   } = useQuery({
-    queryKey: ['destinations', selectedRegion, search],
-    queryFn: () => fetchDestinationsFromAPI({ region: selectedRegion, search }),
+    queryKey: ['destinations', selectedRegion, debouncedSearch],
+    queryFn: () => fetchDestinationsFromAPI({ region: selectedRegion, search: debouncedSearch }),
     staleTime: 60000,
   });
 
@@ -101,22 +109,31 @@ export const DiscoverPage: React.FC = () => {
     isError: isErrorPlaces,
     refetch: refetchPlaces,
   } = useQuery({
-    queryKey: ['hybridPlaces', debouncedSearch, selectedCategory, selectedDestination?.id],
+    queryKey: ['hybridPlaces', debouncedSearch, selectedDestination?.id, selectedCategory],
     queryFn: () =>
       searchPlacesHybridAPI({
         q: debouncedSearch,
         destination: selectedDestination?.id,
-        category: selectedCategory,
-        limit: 30,
+        category: selectedCategory !== 'All' ? selectedCategory : undefined,
         live: true,
+        limit: 30,
       }),
     enabled: activeTab === 'places',
-    staleTime: 45000,
+    staleTime: 30000,
   });
 
-  // Import mutation for external places
+  // Import Mutation
   const importMutation = useMutation({
-    mutationFn: (place: HybridPlaceResult) => importExternalPlaceAPI(place),
+    mutationFn: (place: HybridPlaceResult) =>
+      importExternalPlaceAPI({
+        name: place.name,
+        destination_slug: selectedDestination?.id || place.destination_slug || 'visakhapatnam',
+        category: place.category || 'culture',
+        latitude: place.latitude,
+        longitude: place.longitude,
+        address: place.address || '',
+        source_record_id: place.source_record_id || place.id,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hybridPlaces'] });
       queryClient.invalidateQueries({ queryKey: ['places'] });
@@ -133,48 +150,59 @@ export const DiscoverPage: React.FC = () => {
   };
 
   const filteredDestinations = destinations.filter((d) => {
+    const query = (debouncedSearch || search).toLowerCase().trim();
     const matchesSearch =
-      d.name.toLowerCase().includes(search.toLowerCase()) ||
-      d.state.toLowerCase().includes(search.toLowerCase()) ||
-      d.description.toLowerCase().includes(search.toLowerCase());
+      !query ||
+      d.name.toLowerCase().includes(query) ||
+      (d.state && d.state.toLowerCase().includes(query)) ||
+      (d.description && d.description.toLowerCase().includes(query));
     const matchesRegion = selectedRegion === 'All' || d.region === selectedRegion;
     const matchesCat =
       selectedCategory === 'All' || (d.popularCategories && d.popularCategories.includes(selectedCategory as any));
     return matchesSearch && matchesRegion && matchesCat;
   });
 
-  const handleSelectAndPlan = (dest: typeof CURATED_DESTINATIONS[0]) => {
-    setSelectedDestination(dest);
-    setPreferences((prev) => ({
-      ...prev,
-      destination: dest.id,
-      destinationName: dest.name,
-    }));
-    navigate('/planner');
-  };
+  // Filter places by environment if selected
+  const displayedPlaces = (liveSearchResults?.results || []).filter((place) => {
+    if (selectedEnvironment === 'All') return true;
+    const env = classifyPlaceEnvironment(place.category, place.subcategory, place.name);
+    return env === selectedEnvironment;
+  });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      {/* Page Header */}
-      <div className="space-y-2">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-saffron/15 text-brand-spice border border-brand-saffron/30 text-xs font-bold">
-          <Compass className="w-3.5 h-3.5" />
-          <span>LIVE DISCOVERY & DESTINATIONS</span>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-fade-in">
+      {/* Page Header with Compare Link */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-saffron/15 text-brand-spice border border-brand-saffron/30 text-xs font-bold">
+            <Compass className="w-3.5 h-3.5" />
+            <span>LIVE DISCOVERY & TRAVEL INTELLIGENCE</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-stone-900 dark:text-white tracking-tight">
+            Explore India Like a Local
+          </h1>
+          <p className="text-sm text-stone-600 dark:text-slate-400 max-w-2xl">
+            Discover verified Indian destinations, search live attractions across OpenStreetMap and SQLite database records, and explore authentic culinary heritage.
+          </p>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-stone-900 dark:text-white tracking-tight">
-          Explore India Like a Local
-        </h1>
-        <p className="text-sm text-stone-600 dark:text-slate-400 max-w-2xl">
-          Discover verified Indian destinations, search live attractions across OpenStreetMap and SQLite database records, and craft factual itineraries.
-        </p>
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Link
+            to="/compare"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-stone-200/90 dark:bg-white/10 hover:bg-stone-300 dark:hover:bg-white/15 text-stone-900 dark:text-white border border-stone-300 dark:border-white/10 transition-colors shadow-sm"
+          >
+            <Scale className="w-4 h-4 text-brand-saffron" />
+            <span>Compare Destinations</span>
+          </Link>
+        </div>
       </div>
 
       {/* Discovery Mode Switcher Tabs */}
-      <div className="flex items-center gap-3 border-b border-stone-200 dark:border-white/10 pb-4">
+      <div className="flex items-center gap-3 border-b border-stone-200 dark:border-white/10 pb-4 overflow-x-auto">
         <button
           type="button"
           onClick={() => handleTabChange('destinations')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
             activeTab === 'destinations'
               ? 'bg-brand-saffron text-white shadow-glow-saffron'
               : 'bg-stone-200/80 dark:bg-white/5 text-stone-700 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
@@ -187,7 +215,7 @@ export const DiscoverPage: React.FC = () => {
         <button
           type="button"
           onClick={() => handleTabChange('places')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
             activeTab === 'places'
               ? 'bg-gradient-to-r from-brand-saffron to-brand-spice text-white shadow-glow-saffron'
               : 'bg-stone-200/80 dark:bg-white/5 text-stone-700 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
@@ -197,96 +225,114 @@ export const DiscoverPage: React.FC = () => {
           <span>Live Place & Attraction Discovery</span>
           <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500 text-white">LIVE</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('culinary')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+            activeTab === 'culinary'
+              ? 'bg-brand-spice text-white shadow-sm'
+              : 'bg-stone-200/80 dark:bg-white/5 text-stone-700 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
+          }`}
+        >
+          <UtensilsCrossed className="w-4 h-4" />
+          <span>Culinary Heritage Guide</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500 text-white">GASTRONOMY</span>
+        </button>
       </div>
 
-      {/* Filter and Search Bar */}
-      <GlassCard className="p-4 sm:p-5 border-stone-200 dark:border-white/10 space-y-4">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-stone-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder={
-                activeTab === 'destinations'
-                  ? 'Search by city name, state, or key terrain...'
-                  : 'Search live places, temples, beaches, forts, food spots...'
-              }
-              className="w-full bg-white dark:bg-slate-900/80 border border-stone-300 dark:border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-stone-900 dark:text-white placeholder-stone-500 focus:outline-none focus:border-brand-saffron"
-            />
+      {/* Filter and Search Bar for Destinations and Places tabs */}
+      {activeTab !== 'culinary' && (
+        <GlassCard className="p-4 sm:p-5 border-stone-200 dark:border-white/10 space-y-4">
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-stone-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder={
+                  activeTab === 'destinations'
+                    ? 'Search by city name, state, or key terrain...'
+                    : 'Search live places, temples, beaches, forts, food spots...'
+                }
+                className="w-full bg-white dark:bg-slate-900/80 border border-stone-300 dark:border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-stone-900 dark:text-white placeholder-stone-500 focus:outline-none focus:border-brand-saffron"
+              />
+            </div>
+
+            {/* Region selector (for destinations) */}
+            {activeTab === 'destinations' && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                {regions.map((region) => (
+                  <button
+                    key={region}
+                    type="button"
+                    onClick={() => setSelectedRegion(region)}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold shrink-0 transition-colors ${
+                      selectedRegion === region
+                        ? 'bg-brand-saffron text-white shadow-sm'
+                        : 'bg-stone-100 dark:bg-white/5 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {region}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Environment filter (for places tab - Pillar 2) */}
+            {activeTab === 'places' && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                <span className="text-[11px] font-bold text-stone-500 dark:text-slate-400 mr-1 flex items-center gap-1">
+                  <Sun className="w-3 h-3 text-amber-500" />
+                  <span>Climate:</span>
+                </span>
+                {environments.map((env) => (
+                  <button
+                    key={env}
+                    type="button"
+                    onClick={() => setSelectedEnvironment(env)}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold shrink-0 transition-colors ${
+                      selectedEnvironment === env
+                        ? 'bg-stone-900 dark:bg-white text-white dark:text-stone-950 font-bold'
+                        : 'bg-stone-100 dark:bg-white/5 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {env === 'All' ? 'All Environments' : env}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Region Tabs (for destinations mode) */}
-          {activeTab === 'destinations' && (
-            <div className="flex items-center gap-1 overflow-x-auto text-xs pb-1 sm:pb-0">
-              {regions.map((reg) => (
-                <button
-                  key={reg}
-                  type="button"
-                  onClick={() => setSelectedRegion(reg)}
-                  className={`px-3 py-2 rounded-xl font-medium shrink-0 transition-colors ${
-                    selectedRegion === reg
-                      ? 'bg-brand-saffron text-white font-bold shadow-glow-saffron'
-                      : 'bg-stone-200/70 dark:bg-white/5 text-stone-700 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
-                  }`}
-                >
-                  {reg}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-stone-200 dark:border-white/5 text-xs">
-          <span className="text-[11px] font-semibold text-stone-500 dark:text-slate-400 shrink-0">Filter Terrain:</span>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-lg capitalize shrink-0 transition-colors ${
-                selectedCategory === cat
-                  ? 'bg-brand-spice/20 text-brand-spice border border-brand-spice/40 font-bold'
-                  : 'bg-stone-200/60 dark:bg-white/5 text-stone-700 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white border border-stone-300/60 dark:border-white/5'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </GlassCard>
-
-      {/* Active Selected Destination Showcase Bar */}
-      {selectedDestination && (
-        <GlassCard className="p-4 sm:p-5 border-brand-saffron/30 bg-gradient-to-r from-brand-saffron/10 via-stone-100 to-stone-200 dark:via-slate-900 dark:to-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-saffron/20 border border-brand-saffron/40 flex items-center justify-center text-brand-spice">
-              <MapPin className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-brand-spice uppercase">Active Destination</div>
-              <h3 className="text-lg font-bold text-stone-900 dark:text-white">
-                {selectedDestination.name}, {selectedDestination.state}
-              </h3>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Link
-              to="/map"
-              className="px-4 py-2 rounded-xl text-xs font-semibold bg-stone-200 hover:bg-stone-300 dark:bg-white/10 dark:hover:bg-white/15 text-stone-800 dark:text-white border border-stone-300 dark:border-white/10 transition-colors"
-            >
-              View on Map
-            </Link>
+          {/* Category Chips Bar */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-1">
+            <span className="text-xs text-stone-500 dark:text-slate-400 mr-1 shrink-0 font-medium">Categories:</span>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium shrink-0 capitalize transition-colors ${
+                  selectedCategory === cat
+                    ? 'bg-brand-spice text-white'
+                    : 'bg-stone-200/60 dark:bg-white/5 text-stone-600 dark:text-slate-400 hover:bg-stone-300 dark:hover:bg-white/10'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
             <button
               type="button"
-              onClick={() => handleSelectAndPlan(selectedDestination)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-brand-saffron to-brand-spice text-white shadow-glow-saffron hover:opacity-95 transition-all"
+              onClick={() => {
+                handleSearchChange('');
+                setSelectedRegion('All');
+                setSelectedCategory('All');
+                setSelectedEnvironment('All');
+              }}
+              className="px-2.5 py-1 text-xs text-stone-400 hover:text-stone-700 dark:hover:text-white underline ml-auto shrink-0"
             >
-              <span>Build Trip</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              Clear filters
             </button>
           </div>
         </GlassCard>
@@ -329,20 +375,39 @@ export const DiscoverPage: React.FC = () => {
               ))}
             </motion.div>
           ) : (
-            <GlassCard className="p-12 text-center space-y-3">
-              <p className="text-base font-bold text-stone-900 dark:text-white">No destinations found matching your filters</p>
-              <p className="text-xs text-stone-600 dark:text-slate-400">Try adjusting your search query or selecting "All" regions.</p>
-              <button
-                type="button"
-                onClick={() => {
-                  handleSearchChange('');
-                  setSelectedRegion('All');
-                  setSelectedCategory('All');
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-brand-saffron text-white"
-              >
-                Reset Filters
-              </button>
+            <GlassCard className="p-12 text-center space-y-4">
+              <p className="text-base font-bold text-stone-900 dark:text-white">
+                No seeded destination hub matching "{debouncedSearch || search}"
+              </p>
+              <p className="text-xs text-stone-600 dark:text-slate-400 max-w-md mx-auto">
+                Looking for attractions, food, or heritage spots in this area? You can discover live OpenStreetMap places right away.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                {debouncedSearch.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleTabChange('places');
+                    }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-brand-saffron to-brand-spice text-white shadow-glow-saffron hover:opacity-95 transition-all"
+                  >
+                    <Globe2 className="w-4 h-4" />
+                    <span>Search Places in "{debouncedSearch}" via Live Discovery</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSearchChange('');
+                    setSelectedRegion('All');
+                    setSelectedCategory('All');
+                    setSelectedEnvironment('All');
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-stone-200 dark:bg-white/10 text-stone-800 dark:text-white hover:bg-stone-300 dark:hover:bg-white/15 transition-colors"
+                >
+                  Reset Filters
+                </button>
+              </div>
             </GlassCard>
           )}
         </>
@@ -353,9 +418,9 @@ export const DiscoverPage: React.FC = () => {
         <div className="space-y-6">
           {/* Metadata Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-stone-600 dark:text-slate-400 px-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-stone-900 dark:text-white">
-                {liveSearchResults?.total_count || 0} Places Discovered
+                {liveSearchResults?.total_count || displayedPlaces.length} Places Discovered
               </span>
               <span className="text-stone-400">•</span>
               <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
@@ -369,8 +434,24 @@ export const DiscoverPage: React.FC = () => {
               </span>
             </div>
 
-            <div className="text-[11px] text-stone-500 dark:text-slate-400">
-              {selectedDestination ? `Scoped to ${selectedDestination.name}` : 'Nationwide search'}
+            <div className="flex items-center gap-2">
+              {selectedDestination ? (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-saffron/15 border border-brand-saffron/30 text-brand-spice text-[11px] font-semibold">
+                  <span>Scoped to: <strong>{selectedDestination.name}</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDestination(null)}
+                    className="hover:text-red-500 font-bold ml-1 text-xs"
+                    title="Remove destination filter for nationwide search"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <span className="text-[11px] text-stone-500 dark:text-slate-400">
+                  Nationwide search
+                </span>
+              )}
             </div>
           </div>
 
@@ -392,26 +473,57 @@ export const DiscoverPage: React.FC = () => {
                 <span>Retry Search</span>
               </button>
             </GlassCard>
-          ) : liveSearchResults?.results && liveSearchResults.results.length > 0 ? (
+          ) : displayedPlaces.length > 0 ? (
             <motion.div
               initial={prefersReducedMotion ? {} : { opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
-              {liveSearchResults.results.map((place) => {
+              {displayedPlaces.map((place) => {
                 const isDb = place.result_type === 'database';
                 const isImported = place.provenance_label === 'Imported and persisted record';
                 const isImporting = importingId === place.id;
+                const env = classifyPlaceEnvironment(place.category, place.subcategory, place.name);
 
                 return (
                   <GlassCard
                     key={place.id}
-                    className="p-5 flex flex-col justify-between space-y-4 border-stone-200 dark:border-white/10 hover:border-brand-saffron/40 transition-all"
+                    className="p-5 flex flex-col justify-between space-y-4 border-stone-200 dark:border-white/10 hover:border-brand-saffron/40 transition-all overflow-hidden"
                   >
                     <div className="space-y-3">
-                      {/* Provenance Badge */}
-                      <div className="flex items-center justify-between gap-2">
+                      {/* Optional Wikimedia / Verified Photograph with Full Attribution */}
+                      {place.image_url && (
+                        <div className="relative h-40 -mx-5 -mt-5 mb-2 overflow-hidden bg-slate-900 group/img">
+                          <img
+                            src={place.image_url}
+                            alt={place.name}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-105"
+                            loading="lazy"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                          <div className="absolute bottom-1.5 inset-x-3 flex items-center justify-between text-[10px] text-slate-200">
+                            <span className="truncate max-w-[180px]">
+                              {place.image_author ? `Photo: ${place.image_author}` : 'Wikimedia Commons'}
+                            </span>
+                            {place.image_source_url ? (
+                              <a
+                                href={place.image_source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-brand-saffron hover:underline font-semibold shrink-0 ml-1"
+                              >
+                                {place.image_license || 'CC BY-SA'} ↗
+                              </a>
+                            ) : (
+                              <span className="shrink-0 ml-1">{place.image_license || 'CC BY-SA'}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Provenance Badge & Environment Tag */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         {isDb ? (
                           <span
                             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -430,9 +542,22 @@ export const DiscoverPage: React.FC = () => {
                           </span>
                         )}
 
-                        <span className="text-[11px] font-semibold text-stone-500 dark:text-slate-400 capitalize">
-                          {place.category}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                              env === 'OUTDOOR'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20'
+                                : env === 'INDOOR'
+                                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/20'
+                                : 'bg-stone-500/10 text-stone-600 dark:text-stone-300 border-stone-500/20'
+                            }`}
+                          >
+                            {env}
+                          </span>
+                          <span className="text-[11px] font-semibold text-stone-500 dark:text-slate-400 capitalize">
+                            {place.category}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Name & Destination */}
@@ -482,14 +607,29 @@ export const DiscoverPage: React.FC = () => {
                     </div>
 
                     {/* Bottom Actions */}
-                    <div className="pt-3 border-t border-stone-200 dark:border-white/5 flex items-center justify-between gap-2">
-                      <Link
-                        to={`/map?lat=${place.latitude}&lon=${place.longitude}`}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-stone-700 dark:text-slate-300 hover:text-brand-saffron transition-colors"
-                      >
-                        <MapIcon className="w-3.5 h-3.5" />
-                        <span>Locate on Map</span>
-                      </Link>
+                    <div className="pt-3 border-t border-stone-200 dark:border-white/5 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to={`/map?lat=${place.latitude}&lon=${place.longitude}`}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-stone-700 dark:text-slate-300 hover:text-brand-saffron transition-colors"
+                        >
+                          <MapIcon className="w-3.5 h-3.5" />
+                          <span>Locate</span>
+                        </Link>
+
+                        {/* Provenance Drawer Inspection */}
+                        {isDb && (
+                          <button
+                            type="button"
+                            onClick={() => setProvenanceModalPlace({ id: place.id, name: place.name })}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                            title="Inspect recorded data provenance"
+                          >
+                            <ShieldCheck className="w-3 h-3" />
+                            <span>Audit</span>
+                          </button>
+                        )}
+                      </div>
 
                       {/* If external, show Import Button */}
                       {!place.is_persisted && (
@@ -522,14 +662,17 @@ export const DiscoverPage: React.FC = () => {
           ) : (
             <GlassCard className="p-12 text-center space-y-3">
               <p className="text-base font-bold text-stone-900 dark:text-white">
-                No places discovered matching "{debouncedSearch}"
+                No places discovered matching "{debouncedSearch}" {selectedEnvironment !== 'All' ? `with climate environment "${selectedEnvironment}"` : ''}
               </p>
               <p className="text-xs text-stone-600 dark:text-slate-400">
                 Try searching for general Indian landmarks, beaches, temples, or street food names.
               </p>
               <button
                 type="button"
-                onClick={() => handleSearchChange('')}
+                onClick={() => {
+                  handleSearchChange('');
+                  setSelectedEnvironment('All');
+                }}
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-brand-saffron text-white"
               >
                 Clear Search
@@ -537,6 +680,23 @@ export const DiscoverPage: React.FC = () => {
             </GlassCard>
           )}
         </div>
+      )}
+
+      {/* TAB 3: REGIONAL CULINARY HERITAGE GUIDE (PILLAR 4) */}
+      {activeTab === 'culinary' && (
+        <RegionalCulinaryGuide
+          initialDestinationSlug={selectedDestination?.id}
+        />
+      )}
+
+      {/* Provenance Drawer Modal */}
+      {provenanceModalPlace && (
+        <ProvenanceDrawer
+          isOpen={!!provenanceModalPlace}
+          onClose={() => setProvenanceModalPlace(null)}
+          placeId={provenanceModalPlace.id}
+          placeName={provenanceModalPlace.name}
+        />
       )}
     </div>
   );

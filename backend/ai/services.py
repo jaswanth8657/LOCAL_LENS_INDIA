@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import uuid
 import copy
 import hashlib
@@ -62,6 +64,36 @@ class AITripPlannerService:
         # 1. Look up Destination
         dest = Destination.objects.filter(slug=preferences.destination).first()
         if not dest:
+            try:
+                from data_providers.nominatim import NominatimProvider
+                nominatim = NominatimProvider()
+                geo = nominatim.geocode_destination(f"{preferences.destination}, India")
+                if not geo:
+                    geo = nominatim.geocode_destination(preferences.destination)
+                if geo:
+                    name = geo['name']
+                    state = geo.get('state') or 'India'
+                    slug = preferences.destination.lower()
+                    lat_f = float(geo["latitude"])
+                    lon_f = float(geo["longitude"])
+                    dest, _ = Destination.objects.get_or_create(
+                        slug=slug,
+                        defaults={
+                            "name": name,
+                            "state": state,
+                            "region": "South" if lat_f < 20.0 else "North",
+                            "latitude": lat_f,
+                            "longitude": lon_f,
+                            "tagline": f"Live discovered destination in {state}",
+                            "description": f"Real-world Indian destination discovered live via OpenStreetMap.",
+                            "verification_status": "ESTIMATED",
+                            "average_daily_budget_inr": preferences.budget_per_day or 2500,
+                        }
+                    )
+            except Exception as e:
+                logger.warning("Unseeded destination planner lookup notice for '%s': %s", preferences.destination, e)
+
+        if not dest:
             raise LookupError(f"Destination '{preferences.destination}' was not found in the database.")
 
         # Check demo itinerary cache if not persisting immediately to user account
@@ -115,6 +147,37 @@ class AITripPlannerService:
                     'opening_hours': p.opening_hours,
                     'verification_status': p.verification_status,
                 })
+
+        # If candidates are still empty (e.g. unseeded destination), query live places discovery
+        if not candidates:
+            try:
+                from places.search_service import LivePlaceSearchService
+                live_service = LivePlaceSearchService()
+                search_res = live_service.search_places(destination_slug=dest.slug, live=True, limit=25)
+                for p in search_res.get('results', []):
+                    candidates.append({
+                        'id': p.get('id'),
+                        'name': p.get('name'),
+                        'category': p.get('category'),
+                        'subcategory': p.get('subcategory', ''),
+                        'description': p.get('wiki_extract') or p.get('description', ''),
+                        'address': p.get('address', ''),
+                        'latitude': p.get('latitude'),
+                        'longitude': p.get('longitude'),
+                        'ticket_price_inr': p.get('ticket_price_inr'),
+                        'typical_cost_inr': p.get('typical_cost_inr'),
+                        'opening_hours': p.get('opening_hours', ''),
+                        'verification_status': p.get('verification_status', 'UNVERIFIED'),
+                    })
+            except Exception as e:
+                logger.warning("Live candidate places query notice for '%s': %s", dest.slug, e)
+
+        # If user explicitly selected must-visit place IDs, prioritize them
+        if preferences.selected_place_ids:
+            sel_set = set(str(pid) for pid in preferences.selected_place_ids)
+            priority_candidates = [c for c in candidates if str(c.get('id')) in sel_set]
+            other_candidates = [c for c in candidates if str(c.get('id')) not in sel_set]
+            candidates = priority_candidates + other_candidates
 
         if not candidates:
             raise ValueError(f"No places found in destination '{dest.name}'. Please import places first.")

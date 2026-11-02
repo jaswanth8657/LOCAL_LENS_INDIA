@@ -45,7 +45,14 @@ const INTEREST_CONFIGS: { id: TravelInterest; label: string; icon: React.FC<{ cl
 ];
 
 export const PreferenceSelector: React.FC = () => {
-  const { preferences, setPreferences, setSelectedDestination } = useTrip();
+  const { preferences, setPreferences, selectedDestination, setSelectedDestination } = useTrip();
+
+  const destinationOptions = React.useMemo(() => {
+    if (selectedDestination && !CURATED_DESTINATIONS.some(d => d.id === selectedDestination.id)) {
+      return [selectedDestination, ...CURATED_DESTINATIONS];
+    }
+    return CURATED_DESTINATIONS;
+  }, [selectedDestination]);
   const navigate = useNavigate();
 
   const {
@@ -89,7 +96,7 @@ export const PreferenceSelector: React.FC = () => {
   };
 
   const onSubmit = (data: PreferenceFormData) => {
-    const dest = CURATED_DESTINATIONS.find((d) => d.id === data.destination);
+    const dest = destinationOptions.find((d) => d.id === data.destination);
     if (dest) {
       setSelectedDestination(dest);
     }
@@ -105,19 +112,19 @@ export const PreferenceSelector: React.FC = () => {
   };
 
   return (
-    <GlassCard className="p-6 sm:p-8 max-w-4xl mx-auto border-white/10 shadow-2xl">
+    <GlassCard className="p-6 sm:p-8 max-w-4xl mx-auto border-stone-200 dark:border-white/10 shadow-xl">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 dark:border-white/10 pb-5">
           <div>
             <span className="text-xs font-bold text-brand-spice uppercase tracking-wider">
               Step 1 • Customize Your Journey
             </span>
-            <h2 className="text-2xl font-extrabold text-white tracking-tight mt-1">
+            <h2 className="text-2xl font-extrabold text-stone-900 dark:text-white tracking-tight mt-1">
               Travel Preferences & Criteria
             </h2>
           </div>
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-400 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
+          <div className="flex items-center gap-2 text-xs font-medium text-stone-600 dark:text-slate-400 bg-stone-100 dark:bg-white/5 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-white/10">
             <Sparkles className="w-4 h-4 text-brand-spice" />
             <span>AI-Guided Scoring</span>
           </div>
@@ -125,7 +132,7 @@ export const PreferenceSelector: React.FC = () => {
 
         {/* 1. Destination Picker */}
         <div className="space-y-2.5">
-          <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+          <label className="text-xs font-bold text-stone-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
             <Compass className="w-3.5 h-3.5 text-brand-saffron" />
             Choose Indian Destination
           </label>
@@ -135,11 +142,11 @@ export const PreferenceSelector: React.FC = () => {
             render={({ field }) => (
               <select
                 {...field}
-                className="w-full rounded-2xl bg-slate-900 border border-white/15 px-4 py-3 text-sm font-semibold text-white focus:outline-none focus:border-brand-saffron transition-all"
+                className="w-full rounded-2xl bg-white dark:bg-slate-900 border border-stone-300 dark:border-white/15 px-4 py-3 text-sm font-semibold text-stone-900 dark:text-white focus:outline-none focus:border-brand-saffron transition-all"
               >
-                {CURATED_DESTINATIONS.map((dest) => (
-                  <option key={dest.id} value={dest.id} className="bg-slate-900 text-white">
-                    {dest.name}, {dest.state} ({dest.region} India)
+                {destinationOptions.map((dest) => (
+                  <option key={dest.id} value={dest.id} className="bg-white dark:bg-slate-900 text-stone-900 dark:text-white">
+                    {dest.name}, {dest.state} ({dest.region} India){dest.isExternal ? ' [Live Discovery]' : ''}
                   </option>
                 ))}
               </select>
@@ -153,7 +160,7 @@ export const PreferenceSelector: React.FC = () => {
         {/* 2. Travel Interests Selector */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <label className="text-xs font-bold text-stone-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-brand-spice" />
               What Interests You Most?
             </label>
@@ -173,8 +180,8 @@ export const PreferenceSelector: React.FC = () => {
                   onClick={() => toggleInterest(item.id)}
                   className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border text-center transition-all ${
                     isSelected
-                      ? 'bg-brand-saffron/15 border-brand-saffron/60 text-white font-bold shadow-glow-saffron'
-                      : 'bg-slate-900/60 border-white/5 text-slate-400 hover:text-white hover:bg-slate-800'
+                      ? 'bg-brand-saffron/20 border-brand-saffron text-stone-900 dark:text-white font-bold shadow-glow-saffron'
+                      : 'bg-stone-100/90 dark:bg-slate-900/60 border-stone-200 dark:border-white/5 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-slate-800'
                   }`}
                 >
                   <Icon
@@ -195,12 +202,12 @@ export const PreferenceSelector: React.FC = () => {
         {/* 3. Budget Range Slider */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <label className="text-xs font-bold text-stone-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
               <IndianRupee className="w-3.5 h-3.5 text-emerald-400" />
               Estimated Daily Budget Per Person
             </label>
             <div className="text-right">
-              <span className="text-base font-extrabold text-white">
+              <span className="text-base font-extrabold text-stone-900 dark:text-white">
                 ₹{currentBudget.toLocaleString('en-IN')}
               </span>
               <span className="text-xs text-slate-400"> / day</span>
@@ -221,11 +228,11 @@ export const PreferenceSelector: React.FC = () => {
                 step={250}
                 value={field.value}
                 onChange={(e) => field.onChange(Number(e.target.value))}
-                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-brand-saffron"
+                className="w-full h-2 bg-stone-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-brand-saffron"
               />
             )}
           />
-          <div className="flex justify-between text-[10px] font-medium text-slate-500">
+          <div className="flex justify-between text-[10px] font-medium text-stone-500 dark:text-slate-400">
             <span>₹500 (Budget)</span>
             <span>₹2,500 (Moderate)</span>
             <span>₹5,000 (Premium)</span>
@@ -237,7 +244,7 @@ export const PreferenceSelector: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* Group Type */}
           <div className="space-y-2.5">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <label className="text-xs font-bold text-stone-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5 text-sky-400" />
               Travel Group
             </label>
@@ -249,8 +256,8 @@ export const PreferenceSelector: React.FC = () => {
                   onClick={() => setValue('groupType', group)}
                   className={`py-2.5 rounded-xl text-xs font-semibold border transition-all ${
                     currentGroup === group
-                      ? 'bg-sky-500/20 border-sky-400 text-white font-bold'
-                      : 'bg-slate-900/60 border-white/5 text-slate-400 hover:text-white'
+                      ? 'bg-sky-500/20 border-sky-500 text-stone-900 dark:text-white font-bold'
+                      : 'bg-stone-100/90 dark:bg-slate-900/60 border-stone-200 dark:border-white/5 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
                   }`}
                 >
                   {group}
@@ -262,7 +269,7 @@ export const PreferenceSelector: React.FC = () => {
           {/* Duration in Days */}
           <div className="space-y-2.5">
             <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <label className="text-xs font-bold text-stone-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-purple-400" />
                 Trip Duration
               </label>
@@ -281,11 +288,11 @@ export const PreferenceSelector: React.FC = () => {
                   step={1}
                   value={field.value}
                   onChange={(e) => field.onChange(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                  className="w-full h-2 bg-stone-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
                 />
               )}
             />
-            <div className="flex justify-between text-[10px] text-slate-500">
+            <div className="flex justify-between text-[10px] text-stone-500 dark:text-slate-400">
               <span>1 Day</span>
               <span>3 Days (Weekend)</span>
               <span>7 Days (Week)</span>
@@ -295,7 +302,7 @@ export const PreferenceSelector: React.FC = () => {
         </div>
 
         {/* Action Button */}
-        <div className="pt-4 border-t border-white/10 flex justify-end">
+        <div className="pt-4 border-t border-stone-200 dark:border-white/10 flex justify-end">
           <button
             type="submit"
             className="flex items-center gap-2.5 px-8 py-3.5 rounded-2xl text-sm font-extrabold text-white bg-gradient-to-r from-brand-saffron via-brand-spice to-brand-amber hover:opacity-95 shadow-glow-saffron transition-all transform hover:-translate-y-0.5"

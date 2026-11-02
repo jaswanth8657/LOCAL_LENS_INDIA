@@ -165,3 +165,55 @@ class ItinerarySerializer(serializers.ModelSerializer):
 
             return itinerary
 
+    def update(self, instance, validated_data):
+        with transaction.atomic():
+            days_data = validated_data.pop('days', None)
+            expenses_data = validated_data.pop('expenses', None)
+
+            # Update direct fields on Itinerary
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+
+            # Update destination ForeignKey if destination_name changed
+            dest_name = validated_data.get('destination_name')
+            if dest_name:
+                dest_obj = Destination.objects.filter(name__iexact=dest_name).first()
+                if not dest_obj:
+                    dest_obj = Destination.objects.filter(slug=dest_name.lower().replace(' ', '-')).first()
+                if dest_obj:
+                    instance.destination = dest_obj
+
+            if expenses_data is not None:
+                if hasattr(instance, 'expenses') and instance.expenses:
+                    for attr, value in expenses_data.items():
+                        setattr(instance.expenses, attr, value)
+                    instance.expenses.save()
+                else:
+                    ExpenseBreakdown.objects.create(itinerary=instance, **expenses_data)
+
+            if days_data is not None:
+                if len(days_data) > 0 and 'duration_days' not in validated_data:
+                    instance.duration_days = len(days_data)
+
+                # Atomically replace days and stops for this itinerary
+                # (Foreign key on Place has on_delete=SET_NULL, Place records are preserved)
+                instance.days.all().delete()
+
+                for day_data in days_data:
+                    stops_data = day_data.pop('stops', [])
+                    day_obj = ItineraryDay.objects.create(itinerary=instance, **day_data)
+                    for stop_data in stops_data:
+                        place_id = stop_data.pop('placeId', None)
+                        place_obj = None
+                        if place_id is not None:
+                            place_id_str = str(place_id).strip()
+                            if place_id_str.isdigit():
+                                try:
+                                    place_obj = Place.objects.filter(id=int(place_id_str)).first()
+                                except (ValueError, TypeError, OverflowError):
+                                    place_obj = None
+                        ItineraryStop.objects.create(day=day_obj, place=place_obj, **stop_data)
+
+            instance.save()
+            return instance
+
