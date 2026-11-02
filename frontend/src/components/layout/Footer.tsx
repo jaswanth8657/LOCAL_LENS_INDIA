@@ -23,10 +23,6 @@ export const Footer: React.FC = () => {
               </span>
             </div>
             
-            <p className="text-sm font-medium text-brand-spice">
-              Experience Like a Local.
-            </p>
-
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-md">
               AI-powered personalized travel discovery built specifically for Indian destinations. Discover authentic culture, culinary secrets, and scenic trails powered by verified external data and localized intelligence.
             </p>

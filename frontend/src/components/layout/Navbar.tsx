@@ -52,16 +52,9 @@ export const Navbar: React.FC = () => {
               <Compass className="w-6 h-6 text-brand-spice group-hover:rotate-45 transition-transform duration-500" />
             </div>
           </div>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white">
-                LOCAL LENS <span className="text-gradient-saffron">INDIA</span>
-              </span>
-            </div>
-            <span className="text-[11px] font-semibold tracking-wider text-brand-spice uppercase">
-              Experience Like a Local.
-            </span>
-          </div>
+          <span className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white">
+            LOCAL LENS <span className="text-gradient-saffron">INDIA</span>
+          </span>
         </Link>
 
         {/* Desktop Navigation */}
